@@ -1,26 +1,67 @@
-import {useState} from "react";
+import {useCallback, useMemo, useState} from "react";
 import NewLabelModal from "./NewLabelModal.tsx";
+import type {Label} from "../types";
+import type {LabelProps} from "../types"
+import Pagination from "./Pagination/Pagination.tsx";
+import EditDeleteButtons from "./EditDelete/EditDeleteButtons.tsx";
+import DeleteModal from "./DeleteModal.tsx";
 
-function Labels({ labelsList, setLabelsList }) {
+const itemsPerPage = 2;
 
-    const [showModalLabels, setShowModalLabels] = useState(false)
-    const [editingLabels, setEditingLabels] = useState(null)
+function Labels({labelsList, setLabelsList}: LabelProps) {
+    const [search, setSearch] = useState("");
 
-    const handleDeleteLabels = (id:number) => {
+    const searchingLabels = labelsList.filter((label) =>
+        label.name.toLowerCase().includes(search.toLowerCase())
+    );
+
+    const [showModalLabels, setShowModalLabels] = useState<boolean>(false)
+    const [editingLabels, setEditingLabels] = useState<Label | null>(null)
+    const [currentPage, setCurrentPage] = useState<number>(1);
+    const [deletingItemId, setDeletingItemId] = useState<number | null>(null);
+    const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+
+    const lastItem = useMemo(() => {
+        return currentPage * itemsPerPage
+    }, [currentPage]);
+
+    const firstItem = useMemo(() => {
+        return lastItem - itemsPerPage
+    }, [lastItem]);
+
+    const currentIssues = useMemo(() => {
+        return searchingLabels.slice(firstItem, lastItem)
+    }, [searchingLabels, firstItem, lastItem]);
+
+    const totalPages = useMemo(() => {
+        return Math.ceil(labelsList.length / itemsPerPage)
+    }, [labelsList.length]);
+
+    const handleDeleteLabels = (id: number) => {
+        setDeletingItemId(id);
+        setShowDeleteModal(true);
+    };
+
+    const yesDelete = (id: number) => {
         const update = labelsList.filter(item => item.id !== id)
-        setLabelsList(update)
+        setLabelsList(update);
+        setDeletingItemId(null);
+        setShowDeleteModal(false);
     }
 
-    const handleEditLabels = (label) => {
+    const noDelete = () => {
+        setShowDeleteModal(false);
+    }
+
+    const handleEditLabels = useCallback((label: Label) => {
         setEditingLabels(label)
         setShowModalLabels(true)
+    }, []);
 
-    }
-
-    const handleSaveLabel = (label) => {
+    const handleSaveLabel = (label: Label) => {
         setShowModalLabels(false)
 
-        if(editingLabels) {
+        if (editingLabels) {
             const updateLabel = labelsList.map((item) =>
                 item.id === editingLabels.id ? {...item, ...label} : item
             );
@@ -33,37 +74,52 @@ function Labels({ labelsList, setLabelsList }) {
             });
             setLabelsList(labelsList);
         }
-    }
+    };
+
+    const handlePageChange = (page: number) => {
+        console.log(page)
+        setCurrentPage(page);
+    };
 
     return (
-            <div className="space-y-2">
-                <div className="flex justify-end">
-                    <button className="cursor-pointer bg-gray-200 border p-3 border-gray-400" onClick={() => setShowModalLabels(true)}>Create New Label</button>
+        <div className="space-y-4">
+            <div className="flex justify-between">
+                <div className="flex gap-3">
+                    <input onChange={(e) => setSearch(e.target.value)} type="search" placeholder="Search..."
+                           className="border p-2 w-150 rounded-xl shadow-lg "/>
                 </div>
-                <div>
-                    {showModalLabels && (
-                        <NewLabelModal onSave={handleSaveLabel} />
-                    )}
-                </div>
-
-
-                <div className="space-y-2">
-                    {labelsList.map((label) => (
-                        <div className='flex justify-between items-center gap-2 border rouned-lg p-2'>
-                            <div key={label.id} style={{
-                                backgroundColor: label.color
-                            }} className="text-amber-100 max-w-fit p-2 rounded-md">
-                                {label.name}
-                            </div>
-
-                            <div className="flex justify-between gap-3">
-                                <button className="bg-red-200 cursor-pointer p-2" type="button" onClick={() => handleEditLabels(label)}>Edit</button>
-                                <button className="bg-red-200 cursor-pointer p-2" type="button" onClick={() => handleDeleteLabels(label.id)}>Delete</button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                <button
+                    className="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-xl shadow hover:bg-indigo-700 transition cursor-pointer"
+                    onClick={() => setShowModalLabels(true)}
+                >
+                    Create New Label
+                </button>
             </div>
+            {showModalLabels && (
+                <NewLabelModal onSave={handleSaveLabel} setShowModalLabels={setShowModalLabels}/>
+            )}
+            {showDeleteModal && (
+                <DeleteModal  yesDelete={() => yesDelete(deletingItemId)} noDelete={noDelete}/>
+            )}
+            <div className="space-y-3">
+                {currentIssues.map((label) => (
+                    <div
+                        key={label.id}
+                        className="flex justify-between items-center gap-4 border border-gray-300 rounded-xl p-4 shadow-sm hover:shadow-md transition"
+                    >
+                        <div
+                            style={{backgroundColor: label.color}}
+                            className="text-white font-semibold max-w-fit px-4 py-2 rounded-xl"
+                        >
+                            {label.name}
+                        </div>
+                        <EditDeleteButtons onDelete={() => handleDeleteLabels(label.id)} onEdit={() => handleEditLabels(label)} />
+                    </div>
+                ))}
+            </div>
+            <Pagination currentPage={currentPage} onPageChange={handlePageChange} totalPages={totalPages}/>
+        </div>
     )
 }
+
 export default Labels
